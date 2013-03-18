@@ -65,39 +65,29 @@ import re
 import os
 import csv
 import shutil
-import civx
-import civx.model
+import logging
 import uuid
 import subprocess
 
-from tg import config
 from twill.commands import fv, save_html, submit
 from datetime import datetime
 from urlparse import urlparse, urljoin
 from pprint import pprint, pformat
-from paste.deploy.converters import asint
 from sqlalchemy import *
 from sqlalchemy.orm import mapper, sessionmaker
-from moksha.api.hub import Consumer
-from moksha.lib.helpers import to_unicode
-from civx.knowledge.model import Fact, Entity
+from knowledge.model import Fact, Entity, DBSession
 
-from BeautifulSoup import BeautifulSoup
-
-from civx.utils import get_magic, populate_csv, get_mapped_table_model_from_entity, get_fact_from_parents, get_knowledge_session
-from civx.scrubbers import CSVScrubber
-from civx.model import metadata
-from civx.scrapers import Scraper
+from bs4 import BeautifulSoup
 
 extensions = u'csv,zip,exe,xls,txt,rss,xml,json'
 
-class PolyScraper(Consumer, Scraper):
+class PolyScraper(object):
     """ The CIVX Polymorphic Scraper.
 
     >>> url = u'http://www.data.gov/raw/994'
     >>> poly = PolyScraper()
     >>> poly.consume({'body': {'url': url}})
-    >>> entity = poly.DBSession.query(Entity).filter_by(name=u'data.gov').one()
+    >>> entity = Entity.by_name('data.gov')
     >>> len(entity.children)
     1
     >>> child = entity.children.values()[0]
@@ -118,9 +108,9 @@ class PolyScraper(Consumer, Scraper):
     >>> assert u'columns' in child.facts
     >>> assert child[u'filename'].endswith('csv')
     >>> table, model = get_mapped_table_model_from_entity(child)
-    >>> int(poly.DBSession.query(model).count())
+    >>> int(DBSession.query(model).count())
     417
-    >>> poly.DBSession.query(model).first()
+    >>> DBSession.query(model)
     http://data.gov/download/994/csv
      * Name: A. ROSENTHAL (PTY) LTD.
      * Street_Address: P.O. BOX 44198, 65 7TH STREET, DENMYR BUILDING
@@ -131,32 +121,13 @@ class PolyScraper(Consumer, Scraper):
      * Effective_Date: 08/08/1997
      * Expiration_Date: 08/08/2017
      * Standard_Order: Y
-
-
-
     """
-    # The moksha-hub will automatically subscribe this consumer to the specified topic.
-    # When a new message arrives, it will then pass it to the consume() method.
-    topic = 'civx.scrapers.new_url'
-
-    # By specifying this, Moksha will automatically setup
-    # self.engine and self.DBSession for us in this Consumer
-    app = 'civx.knowledge'
-
-    # Used by various Scraper API methods. I'm not sure we still
-    # need this for the PolyScraper though.
-    models = [Entity]
 
     def __init__(self):
-        super(PolyScraper, self).__init__()
-        if Entity not in civx.model.models:
-            civx.model.models[Entity] = {'csv': [], 'columns': [], 'tmp_csv': {}}
-        metadata.bind = self.engine
+        self.log = logging.getLogger('PolyScraper')
 
-    def consume(self, message):
+    def consume(self, url):
         """
-        message: {'url': 'http://url.gov'}
-
         This method attempts to scrape a URI.  First it tries to figure out the
         protocol, then tries to pull a hostname out of the url.  Then the git
         repo is initialized, and we take a close look at the url.
@@ -168,9 +139,8 @@ class PolyScraper(Consumer, Scraper):
         When everything is done, the entity is updated and messages are sent
         out announcing that the scrape is done.
         """
-        self.log.debug("PolyScraper(%s)" % message)
+        self.log.debug("PolyScraper(%s)" % url)
         start = datetime.utcnow()
-        url = to_unicode(message['body']['url'])
 
         # Try to pull a protocol off the URI
         protocol_end = url.find("://")
@@ -185,42 +155,42 @@ class PolyScraper(Consumer, Scraper):
             hostname = u"localhost"
 
         # See if we already know about this URL
-        entity = self.DBSession.query(Entity).filter_by(name=url).first()
+        entity = Entity.by_name(url)
         if entity:
             self.log.info('Entity(%r) already exists' % url)
         else:
-            root = self.DBSession.query(Entity).filter_by(name=u'CIVX').first()
+            root = Entity.by_name(u'CIVX')
             if not root:
                 root = Entity(name=u'CIVX')
-                self.DBSession.add(root)
-                self.DBSession.flush()
+                DBSession.add(root)
+                DBSession.flush()
 
-            parent = self.DBSession.query(Entity).filter_by(name=hostname).first()
+            parent = Entity.by_name(hostname)
             if not parent:
                 parent = Entity(name=hostname)
-                self.DBSession.add(parent)
+                DBSession.add(parent)
                 parent.parent = root
                 self.log.debug("Created entity %r" % parent.name)
 
             entity = Entity(name=url)
-            self.DBSession.add(entity)
+            DBSession.add(entity)
             # hide the exact url entity from our tree
             entity.parent = parent
             self.log.debug("Created entity %r" % entity.name)
 
-            self.send_message('civx.knowledge.entities.new', {
-                'msg': 'New entity created: %s' % url
-                })
+            #self.send_message('civx.knowledge.entities.new', {
+            #    'msg': 'New entity created: %s' % url
+            #    })
 
-        self.DBSession.flush()
+        DBSession.flush()
 
         # Initialize a git repo for this data source
         entity[u'repo'] = hostname
         #entity[u'url'] = url
 
         # Initialize the git repository for this domain
-        self.init_git_repo(repo=hostname)
-        self.DBSession.flush()
+        #~ self.init_git_repo(repo=hostname)
+        DBSession.flush()
 
         # Scrape the url (to a certain depth) for data
         num_downloads = 0
@@ -283,7 +253,7 @@ class PolyScraper(Consumer, Scraper):
                     ##file_entity[u'url'] = link
                     #file_entity[u'filename'] = filename
                     #file_entity[u'repo'] = hostname
-                    #self.DBSession.add(file_entity)
+                    #DBSession.add(file_entity)
                     #file_entity.parent = entity
                     ##file_entity.parent = parent
                     #self.log.debug("Created entity %r (parent %r)" % (
@@ -320,8 +290,8 @@ class PolyScraper(Consumer, Scraper):
                 local = os.path.exists(link)
 
                 # See if this file already exists
-                file_entity = self.DBSession.query(Entity).filter_by(name=link).first()
-                #file_entity = self.DBSession.query(Entity).filter_by(name=os.path.basename(file_name)).first()
+                file_entity = Entity.by_name(link)
+                #file_entity = Entity.by_name(os.path.basename(file_name))
                 if file_entity:
                     self.log.info('Entity(%r) already exists; skipping.' % link)
                     continue
@@ -355,7 +325,7 @@ class PolyScraper(Consumer, Scraper):
                 #file_entity[u'url'] = link
                 file_entity[u'filename'] = filename
                 file_entity[u'repo'] = hostname
-                self.DBSession.add(file_entity)
+                DBSession.add(file_entity)
                 file_entity.parent = entity
                 #file_entity.parent = parent
                 self.log.debug("Created entity %r (parent %r)" % (
@@ -363,7 +333,7 @@ class PolyScraper(Consumer, Scraper):
 
                 # Determine the file magic, and call the appropriate handler
                 file_entity[u'magic'] = self.call_magic_handler(filename, file_entity)
-                self.DBSession.flush()
+                DBSession.flush()
 
 # To do this stuff we'll need to return an entity from the url handler?
         #if 'num_files' in entity.facts:
@@ -391,20 +361,20 @@ class PolyScraper(Consumer, Scraper):
             u'elapsed_time': unicode(finish-start),
             u'num_downloads': num_downloads,
             #u'num_children': len(entity.children),
-            u'git_commit': self.get_latest_commit_id(),
+            #~ u'git_commit': self.get_latest_commit_id(),
             }
         entity[u'changelog'].append(changelog)
 
-        self.DBSession.commit()
+        DBSession.commit()
 
         self.log.info("== Statistics ==")
         self.log.info("Scraped url: " + url)
         self.log.info("Number of downloaded files: %d" % num_downloads)
 
-        self.send_message('civx.knowledge.entitites.%s' % url, {
-            'msg': 'Completed scraping %s' % url,
-            'changelog': changelog,
-            })
+        #self.send_message('civx.knowledge.entitites.%s' % url, {
+        #    'msg': 'Completed scraping %s' % url,
+        #    'changelog': changelog,
+        #    })
 
     # File type handlers
     def zip_exe_handler(self, entity):
@@ -431,20 +401,18 @@ class PolyScraper(Consumer, Scraper):
 
                 # Create a new child Entity for each extracted file
                 extracted = to_unicode(extracted)
-                child = self.DBSession.query(Entity) \
-                                      .filter_by(name=extracted) \
-                                      .first()
+                child = Entity.by_name(extracted)
                 if not child:
                     child = Entity(name=os.path.basename(extracted))
                     child[u'filename'] = extracted
-                    self.DBSession.add(child)
+                    DBSession.add(child)
                     child.parent = entity
                     child[u'magic'] = to_unicode(magic)
                     self.log.debug("Created %s" % child)
                 else:
                     child.parent = entity
 
-                self.DBSession.flush()
+                DBSession.flush()
 
                 self.call_magic_handler(extracted, child)
 
@@ -472,20 +440,18 @@ class PolyScraper(Consumer, Scraper):
 
                 # Create a new child Entity for each extracted file
                 extracted = to_unicode(extracted)
-                child = self.DBSession.query(Entity) \
-                                      .filter_by(name=extracted) \
-                                      .first()
+                child = Entity.by_name(extracted)
                 if not child:
                     child = Entity(name=os.path.basename(extracted))
                     child[u'filename'] = extracted
-                    self.DBSession.add(child)
+                    DBSession.add(child)
                     child.parent = entity
                     child[u'magic'] = to_unicode(magic)
                     self.log.debug("Created %s" % child)
                 else:
                     child.parent = entity
 
-                self.DBSession.flush()
+                DBSession.flush()
 
                 self.call_magic_handler(extracted, child)
 
@@ -523,7 +489,7 @@ class PolyScraper(Consumer, Scraper):
                     # map them to the 'column_names'
                     entity[u'columns'] = [u'col_%d' % i for i in
                                           range(len(columns))]
-                    #self.DBSession.flush()
+                    #DBSession.flush()
                     table, model = get_mapped_table_model_from_entity(entity)
                     model.__table__ = table
 
@@ -538,7 +504,7 @@ class PolyScraper(Consumer, Scraper):
                 break
 
             self.log.info("%d entries in %r table" % (
-                    self.DBSession.query(model).count(),
+                    DBSession.query(model).count(),
                     entity[u'table_name']))
 
             populate_csv((
@@ -548,14 +514,14 @@ class PolyScraper(Consumer, Scraper):
                     self.engine), dialect=custom_dialect)
 
             self.log.info("%d entries in %r table" % (
-                    self.DBSession.query(model).count(),
+                    DBSession.query(model).count(),
                     entity[u'table_name']))
 
             # Reset these here???!
             civx.model.models[model]['csv'] = []
             civx.model.models[model]['tmp_csv'] = {}
 
-            self.DBSession.commit()
+            DBSession.commit()
 
         except Exception, e:
             self.log.error('Unable to parse file as CSV')
@@ -589,19 +555,18 @@ class PolyScraper(Consumer, Scraper):
                   'Additional Metadata')
 
         # Our top-level data.gov entity
-        data_gov = self.DBSession.query(Entity) \
-                                 .filter_by(name=u'data.gov').first()
+        data_gov = Entity.by_name('data.gov')
         if not data_gov:
             data_gov = Entity(name=u'data.gov')
-            self.DBSession.add(data_gov)
-            root = self.DBSession.query(Entity).filter_by(name=u'CIVX').first()
+            DBSession.add(data_gov)
+            root = Entity.by_name(u'CIVX')
             if not root:
                 root = Entity(name=u'CIVX')
-                self.DBSession.add(root)
+                DBSession.add(root)
             data_gov.parent = root
 
         # See if this entity already exists
-        entity = self.DBSession.query(Entity).filter_by(name=url).first()
+        entity = Entity.by_name(url)
         if entity:
             self.log.info('Entity(%r) already exists; skipping.' % url)
             return
@@ -615,7 +580,7 @@ class PolyScraper(Consumer, Scraper):
             entity = Entity(name=title)
             entity[u'url'] = url
             entity[u'repo'] = hostname
-            self.DBSession.add(entity)
+            DBSession.add(entity)
             dest = [config['git_dir'], hostname]
 
             # Extract data for each field
@@ -626,22 +591,22 @@ class PolyScraper(Consumer, Scraper):
                     if data:
                         entity[unicode(field)] = data.decode('utf-8').strip()
 
-            self.DBSession.flush()
+            DBSession.flush()
 
             # Create seperate parent Agency Entity
             if u'Agency' in entity.facts:
                 agency = Entity(name=entity[u'Agency'])
                 agency.parent = data_gov
                 parent = agency
-                self.DBSession.add(agency)
+                DBSession.add(agency)
                 dest.append(entity[u'Agency'])
                 if u'Sub-Agency' in entity.facts:
                     subagency = Entity(name=entity[u'Sub-Agency'])
                     subagency.parent = agency
                     parent = subagency
-                    self.DBSession.add(subagency)
+                    DBSession.add(subagency)
                     dest.append(entity[u'Sub-Agency'])
-                self.DBSession.flush()
+                DBSession.flush()
 
             # Have the URL be the child of the agency or sub-agency
             entity.parent = parent
@@ -670,7 +635,7 @@ class PolyScraper(Consumer, Scraper):
 
                         # Create a new entity for this file
                         file_entity = Entity(name=to_unicode(link))
-                        self.DBSession.add(file_entity)
+                        DBSession.add(file_entity)
                         file_entity[u'filename'] = filename
                         file_entity.parent = entity
 
@@ -683,7 +648,7 @@ class PolyScraper(Consumer, Scraper):
                 map = urllib.unquote(map.get('href', '')[18:]).split('/')[0].replace('###', '/')
                 entity[u'map'] = map
 
-            self.DBSession.flush()
+            DBSession.flush()
 
         # If this is from a table of results, grab the title fom this row
         else:
@@ -757,23 +722,23 @@ class PolyScraper(Consumer, Scraper):
         parsed_url = urlparse(url)
         hostname = parsed_url[1].replace('www.', '')
 
-        parent = self.DBSession.query(Entity).filter_by(name=hostname).first()
+        parent = Entity.by_name(hostname)
         if not parent:
             parent = Entity(name=hostname)
-            self.DBSession.add(parent)
-            root = self.DBSession.query(Entity).filter_by(name=u'CIVX').first()
+            DBSession.add(parent)
+            root = Entity.by_name(u'CIVX')
             if not root:
                 root = Entity(name=u'CIVX')
-                self.DBSession.add(root)
+                DBSession.add(root)
             parent.parent = root
 
         # See if this entity already exists
-        entity = self.DBSession.query(Entity).filter_by(name=url).first()
+        entity = Entity.by_name(url)
         if entity:
             self.log.info('Entity(%r) already exists; skipping.' % url)
             return
 
-        #self.DBSession.flush()
+        #DBSession.flush()
         for category, link_list in links.items():
 
             dest = [config['git_dir'], hostname]
@@ -787,8 +752,8 @@ class PolyScraper(Consumer, Scraper):
                 entity.parent = parent
                 dest.append(entity.name)
 
-                self.DBSession.add(entity)
-                self.DBSession.flush()
+                DBSession.add(entity)
+                DBSession.flush()
 
             dest = os.path.join(*dest)
             if not os.path.isdir(dest):
@@ -810,7 +775,7 @@ class PolyScraper(Consumer, Scraper):
                 file_entity = Entity(name=link.contents[0])
                 file_entity[u'filename'] = filename
                 file_entity[u'repo'] = hostname
-                self.DBSession.add(file_entity)
+                DBSession.add(file_entity)
                 file_entity.parent = entity
                 self.log.debug("Created entity %r (parent %r)" % (
                     file_entity.name, file_entity.parent.name))
@@ -818,7 +783,7 @@ class PolyScraper(Consumer, Scraper):
                 magic = self.call_magic_handler(filename, file_entity)
                 file_entity[u'magic'] = magic
 
-                self.DBSession.flush()
+                DBSession.flush()
 
     def call_magic_handler(self, filename, entity):
         """ Determine the file magic, and call the appropriate handler """
