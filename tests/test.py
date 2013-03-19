@@ -1,12 +1,24 @@
 from __future__ import print_function, unicode_literals
 import unittest
 
+from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
 from knowledge.model import init_model, metadata, DBSession, Entity
 
 from nose.tools import eq_
 
 from polyscraper.poly import PolyScraper
+
+
+def dummy_get_soup(self, url):
+    return BeautifulSoup(open('/tmp/dpl.html').read())
+def dummy_get_file(self, url):
+    url_match = {
+        'http://explore.data.gov/download/5kvc-rp2e/CSV': '/tmp/git/data.gov/Department of Commerce/Bureau of Industry and Security/Denied Persons List with Denied US Export Privileges/CSV',
+    }
+    return url_match[url]
+PolyScraper.get_soup = dummy_get_soup
+PolyScraper.download_file = dummy_get_file
 
 
 class test_data_gov_handler(unittest.TestCase):
