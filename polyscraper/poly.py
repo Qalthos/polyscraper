@@ -442,6 +442,10 @@ class PolyScraper(Scraper):
         self.polymorphic_csv_populator(entity)
 
     def polymorphic_csv_populator(self, entity):
+        """
+        Reads the CSV into Knowledge.
+        TODO: no dynamic dialects?
+        """
         try:
             #flush_after = asint(config.get('transaction_size', 1000))
             repo = utils.get_fact_from_parents(u'repo', entity)
@@ -451,11 +455,12 @@ class PolyScraper(Scraper):
                 pass
             elif custom_dialect not in csv.list_dialects():
                 self.log.error("Dialect '%s' not found!" % custom_dialect)
-            scrubber = CSVScrubber(entity[u'filename'], dialect=custom_dialect)
+            csv_reader = csv.reader(entity['filename'], dialect=custom_dialect)
+
             columns = None
             # TODO: See if this file has already been parsed!
 
-            for i, line in enumerate(scrubber.readlines()):
+            for i, line in enumerate(csv_reader):
                 if i == 0:
                     columns = line
 
