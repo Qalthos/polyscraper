@@ -362,7 +362,7 @@ class PolyScraper(Scraper):
             if line.strip().startswith('inflating'):
                 extracted = os.path.join(dirname, line.strip().split()[-1])
                 self.log.debug("extracted " + extracted)
-                magic = self.get_magic(extracted)
+                magic = utils.get_magic(extracted)
 
                 # Create a new child Entity for each extracted file
                 extracted = to_unicode(extracted)
@@ -401,7 +401,7 @@ class PolyScraper(Scraper):
             if line.strip().startswith('inflating'):
                 extracted = os.path.join(dirname, line.strip().split()[-1])
                 self.log.debug("extracted " + extracted)
-                magic = self.get_magic(extracted)
+                magic = utils.get_magic(extracted)
 
                 # Create a new child Entity for each extracted file
                 child = Entity.by_name(extracted)
@@ -421,15 +421,15 @@ class PolyScraper(Scraper):
 
     def ascii_text_handler(self, entity):
         self.log.debug("ascii_text_handler(%s)" % entity)
-        link = self.get_fact_from_parents(u'link', entity)
-        repo = self.get_fact_from_parents(u'repo', entity)
+        link = utils.get_fact_from_parents(u'link', entity)
+        repo = utils.get_fact_from_parents(u'repo', entity)
         #~ self.git_add_and_commit(entity.name, repo=repo)
         self.polymorphic_csv_populator(entity)
 
     def polymorphic_csv_populator(self, entity):
         try:
             #flush_after = asint(config.get('transaction_size', 1000))
-            repo = self.get_fact_from_parents(u'repo', entity)
+            repo = utils.get_fact_from_parents(u'repo', entity)
             custom_dialect = self.dialects.get(repo, None)
             if not custom_dialect:
                 # Nothing to see hre, carry on.
@@ -453,7 +453,7 @@ class PolyScraper(Scraper):
                     entity[u'columns'] = [u'col_%d' % i for i in
                                           range(len(columns))]
                     #DBSession.flush()
-                    table, model = get_mapped_table_model_from_entity(entity)
+                    table, model = utils.get_mapped_table_model_from_entity(entity)
                     model.__table__ = table
 
                     civx.model.models[model] = {
@@ -471,7 +471,7 @@ class PolyScraper(Scraper):
                     entity[u'table_name']))
 
             populate_csv((
-                    self.get_fact_from_parents('repo', entity),
+                    utils.get_fact_from_parents('repo', entity),
                     entity[u'filename'],
                     model,
                     self.engine), dialect=custom_dialect)
@@ -746,7 +746,7 @@ class PolyScraper(Scraper):
 
     def call_magic_handler(self, filename, entity):
         """ Determine the file magic, and call the appropriate handler """
-        magic = self.get_magic(filename)
+        magic = utils.get_magic(filename)
         if magic in self.magic_types:
             self.log.info('Calling %r for %s magic' % (
                 self.magic_types[magic], magic))

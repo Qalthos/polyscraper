@@ -12,26 +12,6 @@ class Scraper(object):
     def get_engine(self):
         return engine
 
-    def get_fact_from_parents(self, fact, entity):
-        """
-            Crawl through this entity's parents and return the first
-            'fact' it finds.
-        """
-        while entity.parent:
-            if fact in entity.parent.facts:
-                return entity.parent[fact]
-            entity = entity.parent
-
-    def get_magic(self, filename):
-        """ Return the magic type of a filename """
-        import magic
-        if hasattr(magic, 'from_file'): # python-magic on PyPi
-            return magic.from_file(filename)
-        else:
-            m = magic.open(magic.MAGIC_NONE)
-            m.load()
-            return m.file(filename)
-
     def get_soup(self, url):
         """ Get a BeautifulSoup object for a given url """
         return BeautifulSoup(urllib.urlopen(url).read())
