@@ -79,9 +79,11 @@ from knowledge.model import Fact, Entity, DBSession
 
 from bs4 import BeautifulSoup
 
+from polyscraper.scraper import Scraper
+
 extensions = u'csv,zip,exe,xls,txt,rss,xml,json'
 
-class PolyScraper(object):
+class PolyScraper(Scraper):
     """ The CIVX Polymorphic Scraper.
 
     >>> url = u'http://www.data.gov/raw/994'
@@ -125,6 +127,7 @@ class PolyScraper(object):
 
     def __init__(self):
         self.log = logging.getLogger('PolyScraper')
+        self.config = {'git_dir': '/tmp/git'}
 
     def consume(self, url):
         """
@@ -222,7 +225,7 @@ class PolyScraper(object):
                 else:
                     local_files.append(search_path)
 
-                dest = os.path.join(config['git_dir'], hostname)
+                dest = os.path.join(self.config['git_dir'], hostname)
 
                 # FIXME: what about for links to epa.gov from data.gov?
                 # we probably want our own epa.gov repo namespace to download
@@ -286,7 +289,7 @@ class PolyScraper(object):
                     files.append((file_path, file_name, link))
 
             for (file_path, file_name, link) in files:
-                dest = config['git_dir'] + hostname + file_path
+                dest = self.config['git_dir'] + hostname + file_path
                 local = os.path.exists(link)
 
                 # See if this file already exists
@@ -581,7 +584,7 @@ class PolyScraper(object):
             entity[u'url'] = url
             entity[u'repo'] = hostname
             DBSession.add(entity)
-            dest = [config['git_dir'], hostname]
+            dest = [self.config['git_dir'], hostname]
 
             # Extract data for each field
             for field in fields:
@@ -741,7 +744,7 @@ class PolyScraper(object):
         #DBSession.flush()
         for category, link_list in links.items():
 
-            dest = [config['git_dir'], hostname]
+            dest = [self.config['git_dir'], hostname]
 
             if len(links) == 1:
                 entity = parent
