@@ -275,7 +275,7 @@ class PolyScraper(Scraper):
                         civx.model.models[Entity][ext] = []
 
                 raw = self.download_file(link)
-                filename = to_unicode(os.path.join(dest, file_name))
+                filename = os.path.join(dest, file_name)
                 num_downloads += 1
 
                 if local:
@@ -404,7 +404,6 @@ class PolyScraper(Scraper):
                 magic = self.get_magic(extracted)
 
                 # Create a new child Entity for each extracted file
-                extracted = to_unicode(extracted)
                 child = Entity.by_name(extracted)
                 if not child:
                     child = Entity(name=os.path.basename(extracted))
