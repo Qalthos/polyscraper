@@ -1,4 +1,6 @@
 from setuptools import setup
+import multiprocessing
+import logging
 
 setup(
     name='polyscraper',
@@ -10,4 +12,8 @@ setup(
         "mechanize",
         "knowledge",
     ],
+    tests_require=[
+        'nose',
+    ],
+    test_suite='nose.collector',
 )
