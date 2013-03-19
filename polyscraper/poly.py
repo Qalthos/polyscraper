@@ -621,29 +621,29 @@ class PolyScraper(Scraper):
                 os.makedirs(dest)
 
             # Scrape all available raw data types
-            for data in data_types:
-                link = soup.find('img', title='%s document' % data)
+            downloads = soup.find_all('a', 'button')
+            for button in downloads:
+                data = button.string.split()[0]
+                link = button['href']
                 if link:
-                    link = link.previous.get('href')
-                    if link:
-                        link = urljoin('http://data.gov', link)
-                        entity[to_unicode(data.lower())] = to_unicode(link)
-                        parsed_link = urlparse(link)
-                        file_name = parsed_link[2].split('/')[-1]
+                    link = urljoin('http://explore.data.gov', link)
+                    entity[data.lower()] = link
+                    parsed_link = urlparse(link)
+                    file_name = parsed_link[2].split('/')[-1]
 
-                        raw = self.download_file(link)
-                        filename = os.path.join(dest, file_name)
-                        shutil.move(raw, filename)
-                        self.log.debug("Moved %s to %s" % (raw, filename))
+                    raw = self.download_file(link)
+                    filename = os.path.join(dest, file_name)
+                    shutil.move(raw, filename)
+                    self.log.debug("Moved %s to %s" % (raw, filename))
 
-                        # Create a new entity for this file
-                        file_entity = Entity(name=to_unicode(link))
-                        DBSession.add(file_entity)
-                        file_entity[u'filename'] = filename
-                        file_entity.parent = entity
+                    # Create a new entity for this file
+                    file_entity = Entity(name=link)
+                    DBSession.add(file_entity)
+                    file_entity[u'filename'] = filename
+                    file_entity.parent = entity
 
-                        # Process this file accordingly
-                        self.call_magic_handler(filename, file_entity)
+                    # Process this file accordingly
+                    self.call_magic_handler(filename, file_entity)
 
             # Find external map links
             map = soup.find('a', href=re.compile(r'^/externallink/map/'))
