@@ -110,14 +110,13 @@ class test_data_gov_handler(unittest.TestCase):
         child = child.children.values()[0]
         child = child.children.values()[1]
         table, model = get_mapped_table_model_from_entity(child)
-        q.q(DBSession.query(model).first())
-        # http://data.gov/download/994/csv
-        #  * Name: A. ROSENTHAL (PTY) LTD.
-        #  * Street_Address: P.O. BOX 44198, 65 7TH STREET, DENMYR BUILDING
-        #  * City: LINDEN
-        #  * State:
-        #  * Country: ZA
-        #  * Postal_Code: 2104
-        #  * Effective_Date: 08/08/1997
-        #  * Expiration_Date: 08/08/2017
-        #  * Standard_Order: Y
+        eq_(DBSession.query(model).first(), """http://data.gov/download/994/csv
+* Name: A. ROSENTHAL (PTY) LTD.
+* Street_Address: P.O. BOX 44198, 65 7TH STREET, DENMYR BUILDING
+* City: LINDEN
+* State:
+* Country: ZA
+* Postal_Code: 2104
+* Effective_Date: 08/08/1997
+* Expiration_Date: 08/08/2017
+* Standard_Order: Y""")
