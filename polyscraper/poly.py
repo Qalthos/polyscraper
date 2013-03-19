@@ -381,12 +381,27 @@ class PolyScraper(Scraper):
 
                 self.call_magic_handler(extracted, child)
 
-    def tgz_handler(self, entity):
-        """ Handles .tgz files """
-        self.log.debug("tgz_handler(%s)" % entity)
-        entity[u'format'] = u'tgz'
+    def gzip_handler(self, entity):
+        """ Handles .gz files """
+        self.log.debug("gzip_handler(%s)" % entity)
+        entity[u'format'] = u'gz'
+        p = subprocess.Popen('gunzip "%s"' % entity[u'filename'],
+                             shell=True, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             cwd=dirname)
+        out, err = p.communicate()
+        if err:
+            self.log.error("Error unzipping: " + err)
+            return
+
+        magic = utils.get_magic(extracted)
+        self.call_magic_handler(extracted, child)
+
+    def tar_handler(self, entity):
+        """ Handles .tar files """
+        self.log.debug("tar_handler(%s)" % entity)
         dirname = os.path.dirname(entity[u'filename'])
-        p = subprocess.Popen('tar -zxvf "%s"' % entity[u'filename'],
+        p = subprocess.Popen('tar -xvf "%s"' % entity[u'filename'],
                              shell=True, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,
                              cwd=dirname)
@@ -771,10 +786,9 @@ class PolyScraper(Scraper):
     magic_types = {
         re.compile(r'PE32 executable.*for MS Windows.*'): zip_exe_handler,
         re.compile(r'Zip.*'): zip_exe_handler,
-        re.compile(r'ASCII.*'): ascii_text_handler,
-        re.compile(r'Non-ISO extended-ASCII.*'): ascii_text_handler,
+        re.compile(r'.*ASCII.*'): ascii_text_handler,
         re.compile(r'UTF-8.*'): ascii_text_handler,
-        re.compile(r'gzip compressed data.*'): tgz_handler,
+        re.compile(r'gzip compressed data.*'): gzip_handler,
     }
 
     url_handlers = {
