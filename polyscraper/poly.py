@@ -400,7 +400,7 @@ class PolyScraper(Scraper):
             if line.strip().startswith('inflating'):
                 extracted = os.path.join(dirname, line.strip().split()[-1])
                 self.log.debug("extracted " + extracted)
-                magic = get_magic(extracted)
+                magic = self.get_magic(extracted)
 
                 # Create a new child Entity for each extracted file
                 extracted = to_unicode(extracted)
@@ -439,7 +439,7 @@ class PolyScraper(Scraper):
             if line.strip().startswith('inflating'):
                 extracted = os.path.join(dirname, line.strip().split()[-1])
                 self.log.debug("extracted " + extracted)
-                magic = get_magic(extracted)
+                magic = self.get_magic(extracted)
 
                 # Create a new child Entity for each extracted file
                 extracted = to_unicode(extracted)
@@ -790,8 +790,7 @@ class PolyScraper(Scraper):
 
     def call_magic_handler(self, filename, entity):
         """ Determine the file magic, and call the appropriate handler """
-        magic = get_magic(filename)
-        magic = to_unicode(magic)
+        magic = self.get_magic(filename)
         if magic in self.magic_types:
             self.log.info('Calling %r for %s magic' % (
                 self.magic_types[magic], magic))

@@ -8,6 +8,7 @@ setup(
     install_requires=[
         "SQLAlchemy",
         "BeautifulSoup4",
+        "python-magic",
         "twill",
         "mechanize",
         "knowledge",
