@@ -569,17 +569,17 @@ class PolyScraper(Scraper):
             data_gov.parent = root
 
         # See if this entity already exists
-        entity = Entity.by_name(url)
-        if entity:
-            self.log.info('Entity(%r) already exists; skipping.' % url)
-            return
+        #~ entity = Entity.by_name(url)
+        #~ if entity:
+            #~ self.log.info('Entity(%r) already exists; skipping.' % url)
+            #~ return
 
         soup = self.get_soup(url)
 
         # If this is a raw data profile, grab the title of the dataset
         if '/raw/' in url:
             # Create a new Entity for this URL
-            title = soup.findAll('h1')[1].string.decode('utf-8', 'replace')
+            title = soup.find('h2', {'id': 'datasetName'}).string.decode('utf-8', 'replace')
             entity = Entity(name=title)
             entity[u'url'] = url
             entity[u'repo'] = hostname
