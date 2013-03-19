@@ -15,6 +15,7 @@ def dummy_get_soup(self, url):
 def dummy_get_file(self, url):
     url_match = {
         'http://explore.data.gov/download/5kvc-rp2e/CSV': '/tmp/git/data.gov/Department of Commerce/Bureau of Industry and Security/Denied Persons List with Denied US Export Privileges/CSV',
+        'http://explore.data.gov/download/5kvc-rp2e/RDF': '/tmp/git/data.gov/Department of Commerce/Bureau of Industry and Security/Denied Persons List with Denied US Export Privileges/RDF',
     }
     return url_match[url]
 PolyScraper.get_soup = dummy_get_soup

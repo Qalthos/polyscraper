@@ -460,16 +460,15 @@ class PolyScraper(Scraper):
 
     def ascii_text_handler(self, entity):
         self.log.debug("ascii_text_handler(%s)" % entity)
-        civx.model.models[Entity]['csv'].append(entity[u'filename'])
-        link = get_fact_from_parents(u'link', entity)
-        repo = get_fact_from_parents(u'repo', entity)
-        self.git_add_and_commit(entity.name, repo=repo)
+        link = self.get_fact_from_parents(u'link', entity)
+        repo = self.get_fact_from_parents(u'repo', entity)
+        #~ self.git_add_and_commit(entity.name, repo=repo)
         self.polymorphic_csv_populator(entity)
 
     def polymorphic_csv_populator(self, entity):
         try:
             #flush_after = asint(config.get('transaction_size', 1000))
-            repo = get_fact_from_parents(u'repo', entity)
+            repo = self.get_fact_from_parents(u'repo', entity)
             custom_dialect = self.dialects.get(repo, None)
             if not custom_dialect:
                 # Nothing to see hre, carry on.
@@ -511,7 +510,7 @@ class PolyScraper(Scraper):
                     entity[u'table_name']))
 
             populate_csv((
-                    get_fact_from_parents('repo', entity),
+                    self.get_fact_from_parents('repo', entity),
                     entity[u'filename'],
                     model,
                     self.engine), dialect=custom_dialect)
@@ -519,10 +518,6 @@ class PolyScraper(Scraper):
             self.log.info("%d entries in %r table" % (
                     DBSession.query(model).count(),
                     entity[u'table_name']))
-
-            # Reset these here???!
-            civx.model.models[model]['csv'] = []
-            civx.model.models[model]['tmp_csv'] = {}
 
             DBSession.commit()
 
@@ -621,7 +616,7 @@ class PolyScraper(Scraper):
                 os.makedirs(dest)
 
             # Scrape all available raw data types
-            downloads = soup.find_all('a', 'button')
+            downloads = soup.find_all('a', href=re.compile(r'^/download'))
             for button in downloads:
                 data = button.string.split()[0]
                 link = button['href']

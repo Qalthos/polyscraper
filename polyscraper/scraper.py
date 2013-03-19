@@ -12,6 +12,16 @@ class Scraper(object):
     def get_engine(self):
         return engine
 
+    def get_fact_from_parents(self, fact, entity):
+        """
+            Crawl through this entity's parents and return the first
+            'fact' it finds.
+        """
+        while entity.parent:
+            if fact in entity.parent.facts:
+                return entity.parent[fact]
+            entity = entity.parent
+
     def get_magic(self, filename):
         """ Return the magic type of a filename """
         import magic
